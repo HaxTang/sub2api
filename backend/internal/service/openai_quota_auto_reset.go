@@ -219,7 +219,11 @@ func (s *OpenAIQuotaAutoResetService) scanEnabledAccounts(ctx context.Context) {
 	for page := 1; ; page++ {
 		accounts, pageInfo, err := s.accountRepo.ListWithFilters(ctx, pagination.PaginationParams{
 			Page: page, PageSize: openAIAutoResetBatchSize,
-		}, PlatformOpenAI, AccountTypeOAuth, StatusActive, "", 0, "")
+		}, AccountListFilters{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Status:   StatusActive,
+		})
 		if err != nil {
 			slog.Warn("openai_auto_reset_scan_failed", "page", page, "error", err)
 			return

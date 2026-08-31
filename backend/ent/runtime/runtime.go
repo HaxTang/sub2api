@@ -2242,19 +2242,19 @@ func init() {
 	// user.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	user.DefaultRpmLimit = userDescRpmLimit.Default.(int)
 	// userDescCodexContinueEnabled is the schema descriptor for codex_continue_enabled field.
-	userDescCodexContinueEnabled := userFields[21].Descriptor()
+	userDescCodexContinueEnabled := userFields[22].Descriptor()
 	// user.DefaultCodexContinueEnabled holds the default value on creation for the codex_continue_enabled field.
 	user.DefaultCodexContinueEnabled = userDescCodexContinueEnabled.Default.(bool)
 	// userDescCodexContinueMaxContinue is the schema descriptor for codex_continue_max_continue field.
-	userDescCodexContinueMaxContinue := userFields[22].Descriptor()
+	userDescCodexContinueMaxContinue := userFields[23].Descriptor()
 	// user.DefaultCodexContinueMaxContinue holds the default value on creation for the codex_continue_max_continue field.
 	user.DefaultCodexContinueMaxContinue = userDescCodexContinueMaxContinue.Default.(int)
 	// userDescCodexContinueRetryMax is the schema descriptor for codex_continue_retry_max field.
-	userDescCodexContinueRetryMax := userFields[23].Descriptor()
+	userDescCodexContinueRetryMax := userFields[24].Descriptor()
 	// user.DefaultCodexContinueRetryMax holds the default value on creation for the codex_continue_retry_max field.
 	user.DefaultCodexContinueRetryMax = userDescCodexContinueRetryMax.Default.(int)
 	// userDescCodexContinueLowReasoningFloor is the schema descriptor for codex_continue_low_reasoning_floor field.
-	userDescCodexContinueLowReasoningFloor := userFields[24].Descriptor()
+	userDescCodexContinueLowReasoningFloor := userFields[25].Descriptor()
 	// user.DefaultCodexContinueLowReasoningFloor holds the default value on creation for the codex_continue_low_reasoning_floor field.
 	user.DefaultCodexContinueLowReasoningFloor = userDescCodexContinueLowReasoningFloor.Default.(int)
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()

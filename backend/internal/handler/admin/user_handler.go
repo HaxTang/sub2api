@@ -73,6 +73,7 @@ type CreateUserRequest struct {
 	CodexContinueRetryMax          *int    `json:"codex_continue_retry_max"`
 	CodexContinueLowReasoningFloor *int    `json:"codex_continue_low_reasoning_floor"`
 	AllowedGroups                  []int64 `json:"allowed_groups"`
+	RestrictPublicGroups           bool    `json:"restrict_public_groups"`
 }
 
 // UpdateUserRequest represents admin update user request
@@ -92,6 +93,7 @@ type UpdateUserRequest struct {
 	CodexContinueLowReasoningFloor *int     `json:"codex_continue_low_reasoning_floor"`
 	Status                         string   `json:"status" binding:"omitempty,oneof=active disabled"`
 	AllowedGroups                  *[]int64 `json:"allowed_groups"`
+	RestrictPublicGroups           *bool    `json:"restrict_public_groups"`
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64 `json:"group_rates"`
@@ -306,6 +308,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		CodexContinueRetryMax:          req.CodexContinueRetryMax,
 		CodexContinueLowReasoningFloor: req.CodexContinueLowReasoningFloor,
 		AllowedGroups:                  req.AllowedGroups,
+		RestrictPublicGroups:           req.RestrictPublicGroups,
 		ActorAdminID:                   getAdminIDFromContext(c),
 	})
 	if err != nil {
@@ -369,6 +372,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		CodexContinueLowReasoningFloor: req.CodexContinueLowReasoningFloor,
 		Status:                         req.Status,
 		AllowedGroups:                  req.AllowedGroups,
+		RestrictPublicGroups:           req.RestrictPublicGroups,
 		GroupRates:                     req.GroupRates,
 		ActorAdminID:                   getAdminIDFromContext(c),
 	})

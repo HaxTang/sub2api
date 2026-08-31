@@ -46,6 +46,7 @@ const (
 	testClaudeAPIURL                = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL              = "https://chatgpt.com/backend-api/codex/responses"
 	openAIAccountTestProbeUserAgent = "codex-tui/0.133.0 (Windows 10.0.19045; x86_64) WindowsTerminal (codex-tui; 0.133.0)"
+	defaultAntigravityTestModel     = "claude-sonnet-4-6"
 )
 
 // TestEvent represents a SSE event for account testing
@@ -147,6 +148,9 @@ type AccountTestService struct {
 	cfg                       *config.Config
 	settingService            *SettingService
 	tlsFPProfileService       *TLSFingerprintProfileService
+	modelMetadataRegistryMu   sync.Mutex
+	modelMetadataRegistry     map[string]modelsDevProvider
+	modelMetadataRegistryAt   time.Time
 	pluginManager             *PluginManager
 	agentIdentityTaskMu       sync.Mutex
 	agentIdentityWS           agentIdentityWSConnectionInvalidator
@@ -2314,11 +2318,7 @@ func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Accou
 func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, account *Account, modelID string) error {
 	ctx := c.Request.Context()
 
-	// 默认模型：Claude 使用 claude-sonnet-4-5，Gemini 使用 gemini-3-pro-preview
-	testModelID := modelID
-	if testModelID == "" {
-		testModelID = "claude-sonnet-4-5"
-	}
+	testModelID := antigravityConnectionTestModel(modelID)
 
 	if s.antigravityGatewayService == nil {
 		return s.sendErrorAndEnd(c, "Antigravity gateway service not configured")
@@ -2347,6 +2347,13 @@ func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, ac
 
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
+}
+
+func antigravityConnectionTestModel(modelID string) string {
+	if modelID == "" {
+		return defaultAntigravityTestModel
+	}
+	return modelID
 }
 
 // buildGeminiAPIKeyRequest builds request for Gemini API Key accounts

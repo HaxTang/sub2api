@@ -1465,7 +1465,6 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	}
 
 	// Filter by platform if specified.
-	// OpenAI groups one-way include Grok accounts (shared /v1/responses protocol).
 	if platform != "" {
 		filtered := make([]Account, 0)
 		for _, acc := range accounts {

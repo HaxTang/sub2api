@@ -1369,7 +1369,7 @@ func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
 
 func customModelsListSource(platform string, availableModels, fallbackModels []string) []string {
 	// Anthropic 组：并入默认模型，兼容 mixed antigravity 候选。
-	// OpenAI 组保持 account mapping 子集过滤（无 mapping 时走 fallback，fallback 已含 Grok 默认）。
+	// OpenAI 组保持 account mapping 子集过滤（无 mapping 时走 fallback）。
 	if platform == service.PlatformAnthropic && len(availableModels) > 0 {
 		return mergeModelIDs(availableModels, fallbackModels)
 	}
@@ -1447,8 +1447,7 @@ func defaultCodexModelIDsForPlatform(platform string) []string {
 func defaultModelIDsForPlatform(platform string) []string {
 	switch platform {
 	case service.PlatformOpenAI:
-		// OpenAI 组可混入 Grok 账号：自定义 /v1/models fallback 包含两侧默认模型
-		return mergeModelIDs(openai.DefaultModelIDs(), xai.DefaultModelIDs())
+		return openai.DefaultModelIDs()
 	case service.PlatformGemini:
 		ids := make([]string, 0, len(geminicli.DefaultModels))
 		for _, model := range geminicli.DefaultModels {

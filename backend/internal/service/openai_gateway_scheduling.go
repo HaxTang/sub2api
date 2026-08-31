@@ -299,19 +299,11 @@ func NormalizeOpenAICompatiblePlatform(platform string) string {
 
 // isAccountPlatformAllowedForOpenAISchedule reports whether an account platform may be
 // scheduled under the given OpenAI-compatible schedule context (usually group.Platform).
-// OpenAI groups allow one-way Grok mix-in (shared /v1/responses protocol).
-// Grok groups stay Grok-only. CN providers keep exact-platform matching.
+// OpenAI-compatible groups keep exact-platform matching (openai/grok/kimi/zhipu/deepseek).
 func isAccountPlatformAllowedForOpenAISchedule(accountPlatform, schedulePlatform string) bool {
 	schedulePlatform = NormalizeOpenAICompatiblePlatform(schedulePlatform)
 	accountPlatform = strings.TrimSpace(strings.ToLower(accountPlatform))
-	switch schedulePlatform {
-	case PlatformOpenAI:
-		return accountPlatform == PlatformOpenAI || accountPlatform == PlatformGrok
-	case PlatformGrok:
-		return accountPlatform == PlatformGrok
-	default:
-		return accountPlatform == schedulePlatform
-	}
+	return accountPlatform == schedulePlatform
 }
 
 // noAvailableOpenAISelectionError builds the standard "no account available" error
@@ -1532,35 +1524,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 }
 
 func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]Account, error) {
-	platform = NormalizeOpenAICompatiblePlatform(platform)
-	// OpenAI 分组单向混入 Grok 账号（协议同为 /v1/responses）
-	if platform == PlatformOpenAI {
-		return s.listOpenAIGroupMixedSchedulableAccounts(ctx, groupID)
-	}
 	return s.listSchedulableAccountsSinglePlatform(ctx, groupID, platform)
-}
-
-// listOpenAIGroupMixedSchedulableAccounts loads OpenAI + Grok accounts for an OpenAI group.
-// Uses two single-platform queries and merges by ID (compatible with scheduler snapshot buckets
-// and account repos that only implement single-platform list methods).
-func (s *OpenAIGatewayService) listOpenAIGroupMixedSchedulableAccounts(ctx context.Context, groupID *int64) ([]Account, error) {
-	platforms := []string{PlatformOpenAI, PlatformGrok}
-	merged := make([]Account, 0)
-	seen := make(map[int64]struct{})
-	for _, p := range platforms {
-		part, err := s.listSchedulableAccountsSinglePlatform(ctx, groupID, p)
-		if err != nil {
-			return nil, err
-		}
-		for i := range part {
-			if _, ok := seen[part[i].ID]; ok {
-				continue
-			}
-			seen[part[i].ID] = struct{}{}
-			merged = append(merged, part[i])
-		}
-	}
-	return merged, nil
 }
 
 func (s *OpenAIGatewayService) listSchedulableAccountsSinglePlatform(ctx context.Context, groupID *int64, platform string) ([]Account, error) {

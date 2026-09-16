@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -181,6 +182,8 @@ func (s *AccountTestService) SetOpenAIGatewayService(gateway *OpenAIGatewayServi
 // FetchOpenAIAccountModels uses the shared cached discovery path for the test picker.
 // It only fills picker-only gaps (local display-name fallbacks, OAuth image choices)
 // on its own copy; the shared catalog and its cache stay untouched.
+// When the account has an explicit model whitelist/mapping, the picker is restricted
+// to those names so admin test options match the configured allowlist.
 func (s *AccountTestService) FetchOpenAIAccountModels(ctx context.Context, account *Account) ([]openai.Model, error) {
 	if s == nil || s.openaiGatewayService == nil {
 		return nil, errors.New("OpenAI model discovery service is unavailable")
@@ -228,7 +231,105 @@ func (s *AccountTestService) FetchOpenAIAccountModels(ctx context.Context, accou
 			}
 		}
 	}
-	return payload.Data, nil
+	return applyOpenAITestPickerWhitelist(payload.Data, account), nil
+}
+
+// applyOpenAITestPickerWhitelist keeps the admin test picker aligned with the
+// account model whitelist/mapping. Exact keys are always offered (even when the
+// live upstream catalog omitted them); wildcard keys expand against the catalog.
+func applyOpenAITestPickerWhitelist(models []openai.Model, account *Account) []openai.Model {
+	if account == nil || account.IsOpenAIPassthroughEnabled() {
+		return models
+	}
+	mapping := account.GetModelMapping()
+	if len(mapping) == 0 {
+		return models
+	}
+
+	upstreamByID := make(map[string]openai.Model, len(models))
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		if _, exists := upstreamByID[id]; !exists {
+			upstreamByID[id] = model
+		}
+	}
+	defaultByID := make(map[string]openai.Model, len(openai.DefaultModels))
+	for _, model := range openai.DefaultModels {
+		defaultByID[model.ID] = model
+	}
+
+	keys := make([]string, 0, len(mapping))
+	hasWildcard := false
+	for key := range mapping {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if strings.Contains(key, "*") {
+			hasWildcard = true
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	seen := make(map[string]struct{}, len(keys)+len(models))
+	result := make([]openai.Model, 0, len(keys)+len(models))
+	add := func(model openai.Model) {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		if strings.TrimSpace(model.DisplayName) == "" {
+			model.DisplayName = openaiCodexDisplayName(id)
+		}
+		if strings.TrimSpace(model.Type) == "" {
+			model.Type = "model"
+		}
+		if strings.TrimSpace(model.Object) == "" {
+			model.Object = "model"
+		}
+		result = append(result, model)
+		seen[id] = struct{}{}
+	}
+
+	for _, key := range keys {
+		if model, ok := upstreamByID[key]; ok {
+			add(model)
+			continue
+		}
+		if model, ok := defaultByID[key]; ok {
+			add(model)
+			continue
+		}
+		add(openai.Model{
+			ID:          key,
+			Object:      "model",
+			Type:        "model",
+			OwnedBy:     "openai",
+			DisplayName: openaiCodexDisplayName(key),
+		})
+	}
+
+	if !hasWildcard {
+		return result
+	}
+	catalog := models
+	if len(catalog) == 0 {
+		catalog = openai.DefaultModels
+	}
+	for _, model := range catalog {
+		if account.IsModelSupported(model.ID) {
+			add(model)
+		}
+	}
+	return result
 }
 
 // NewAccountTestService creates a new AccountTestService

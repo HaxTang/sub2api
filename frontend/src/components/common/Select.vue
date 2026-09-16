@@ -295,6 +295,9 @@ const filteredOptions = computed(() => {
     opts = opts.filter((opt) => {
       // Match label
       if (getOptionLabel(opt).toLowerCase().includes(query)) return true
+      // Also match the option value/id so model pickers remain searchable by raw ID
+      const value = getOptionValue(opt)
+      if (value != null && String(value).toLowerCase().includes(query)) return true
       // Also match description if present
       if (opt.description && String(opt.description).toLowerCase().includes(query)) return true
       return false

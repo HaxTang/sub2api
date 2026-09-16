@@ -183,6 +183,38 @@ func TestAccountHandlerGetAvailableModels_OpenAIOAuthUsesExplicitModelMapping(t 
 	require.Equal(t, "gpt-5", resp.Data[0].ID)
 }
 
+func TestOpenAITestPickerNeedsUpstreamCatalog(t *testing.T) {
+	require.True(t, openAITestPickerNeedsUpstreamCatalog(nil))
+
+	exact := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"gpt-5.4-mini": "gpt-5.4-mini"},
+		},
+	}
+	require.False(t, openAITestPickerNeedsUpstreamCatalog(exact))
+
+	wildcard := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"gpt-5*": "gpt-5*"},
+		},
+	}
+	require.True(t, openAITestPickerNeedsUpstreamCatalog(wildcard))
+
+	empty := &service.Account{Platform: service.PlatformOpenAI}
+	require.True(t, openAITestPickerNeedsUpstreamCatalog(empty))
+
+	passthrough := &service.Account{
+		Platform: service.PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"gpt-5.4-mini": "gpt-5.4-mini"},
+		},
+		Extra: map[string]any{"openai_passthrough": true},
+	}
+	require.True(t, openAITestPickerNeedsUpstreamCatalog(passthrough))
+}
+
 func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefaults(t *testing.T) {
 	svc := &availableModelsAdminService{
 		stubAdminService: newStubAdminService(),

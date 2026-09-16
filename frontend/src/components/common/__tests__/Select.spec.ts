@@ -216,4 +216,28 @@ describe('Select remote search', () => {
     const labels = [...dropdown.querySelectorAll('.select-option-label')].map((el) => el.textContent)
     expect(labels).toEqual(['Alpha account'])
   })
-})
+
+  it('matches local search against option value as well as label', async () => {
+    const wrapper = mount(Select, {
+      props: {
+        modelValue: null,
+        searchable: true,
+        valueKey: 'id',
+        labelKey: 'display_name',
+        options: [
+          { id: 'gpt-5.4-mini', display_name: 'GPT-5.4 Mini' },
+          { id: 'gpt-5.6-sol', display_name: 'GPT-5.6 Sol' },
+        ],
+      },
+    })
+    unmountWrapper = () => wrapper.unmount()
+    await wrapper.get('button').trigger('click')
+    await nextTick()
+
+    await typeSearchQuery('gpt-5.4-mini')
+
+    const dropdown = await openDropdown()
+    const labels = [...dropdown.querySelectorAll('.select-option-label')].map((el) => el.textContent)
+    expect(labels).toEqual(['GPT-5.4 Mini'])
+  })
+}

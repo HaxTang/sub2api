@@ -86,7 +86,10 @@ func TestFetchOpenAIAccountModelsOAuthLabelsLocalImageModelsLikeUpstream(t *test
 	newCodexModelsOAuthCacheServer(t, `{"models":[{"slug":"gpt-5.6-sol"}]}`)
 	svc := &AccountTestService{openaiGatewayService: &OpenAIGatewayService{}}
 	account := newCodexModelsTestAccount()
-	account.Credentials["model_mapping"] = map[string]any{"gpt-image-2.5-flare": "gpt-image-2.5-flare"}
+	account.Credentials["model_mapping"] = map[string]any{
+		"gpt-5.6-sol": "gpt-5.6-sol",
+		"gpt-image-2.5-flare": "gpt-image-2.5-flare",
+	}
 	models, err := svc.FetchOpenAIAccountModels(context.Background(), account)
 	require.NoError(t, err)
 	byID := make(map[string]string, len(models))
@@ -109,5 +112,67 @@ func TestFetchOpenAIAccountModelsOAuthRespectsImageAllowlist(t *testing.T) {
 		ids = append(ids, model.ID)
 	}
 	require.Contains(t, ids, "gpt-image-2.5-flare")
+	require.NotContains(t, ids, "gpt-6-astra")
 	require.NotContains(t, ids, "gpt-image-2.5-sunburst")
+}
+
+func TestFetchOpenAIAccountModelsExactWhitelistIncludesMissingUpstreamModel(t *testing.T) {
+	gateway := newCodexModelsAPIKeyTestService(&codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return ordinaryModelsUpstreamResponse(`{"data":[{"id":"upstream-other","display_name":"Upstream Other"}]}`), nil
+	}})
+	svc := &AccountTestService{openaiGatewayService: gateway}
+	account := newCodexModelsAPIKeyTestAccount("https://models.example/v1")
+	account.Credentials["model_mapping"] = map[string]any{
+		"gpt-5.4-mini": "gpt-5.4-mini",
+		"custom-alias": "gpt-5.4",
+	}
+
+	models, err := svc.FetchOpenAIAccountModels(context.Background(), account)
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(models))
+	for _, model := range models {
+		ids = append(ids, model.ID)
+	}
+	require.ElementsMatch(t, []string{"custom-alias", "gpt-5.4-mini"}, ids)
+	require.NotContains(t, ids, "upstream-other")
+}
+
+func TestFetchOpenAIAccountModelsWildcardKeepsMatchingUpstream(t *testing.T) {
+	gateway := newCodexModelsAPIKeyTestService(&codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return ordinaryModelsUpstreamResponse(`{"data":[
+			{"id":"gpt-5.4-mini","display_name":"GPT-5.4 Mini"},
+			{"id":"gpt-5.6-sol","display_name":"GPT-5.6 Sol"},
+			{"id":"unrelated-model","display_name":"Unrelated"}
+		]}`), nil
+	}})
+	svc := &AccountTestService{openaiGatewayService: gateway}
+	account := newCodexModelsAPIKeyTestAccount("https://models.example/v1")
+	account.Credentials["model_mapping"] = map[string]any{
+		"gpt-5.4*": "gpt-5.4*",
+	}
+
+	models, err := svc.FetchOpenAIAccountModels(context.Background(), account)
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(models))
+	for _, model := range models {
+		ids = append(ids, model.ID)
+	}
+	require.Equal(t, []string{"gpt-5.4-mini"}, ids)
+}
+
+func TestFetchOpenAIAccountModelsPassthroughKeepsUpstreamCatalog(t *testing.T) {
+	gateway := newCodexModelsAPIKeyTestService(&codexModelsHTTPUpstreamStub{do: func(_ *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+		return ordinaryModelsUpstreamResponse(`{"data":[{"id":"upstream-other","display_name":"Upstream Other"}]}`), nil
+	}})
+	svc := &AccountTestService{openaiGatewayService: gateway}
+	account := newCodexModelsAPIKeyTestAccount("https://models.example/v1")
+	account.Credentials["model_mapping"] = map[string]any{"gpt-5.4-mini": "gpt-5.4-mini"}
+	account.Extra = map[string]any{"openai_passthrough": true}
+
+	models, err := svc.FetchOpenAIAccountModels(context.Background(), account)
+	require.NoError(t, err)
+	require.Len(t, models, 1)
+	require.Equal(t, "upstream-other", models[0].ID)
 }

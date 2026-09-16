@@ -3105,7 +3105,9 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	if account.IsOpenAI() {
 		// Prefer the shared, account-keyed upstream catalog. If discovery fails,
 		// retain the legacy local catalog below so the test dialog remains usable.
-		if h.accountTestService != nil {
+		// Exact model whitelist/mapping already names the test options, so skip the
+		// extra upstream fetch that would hide those configured models.
+		if h.accountTestService != nil && openAITestPickerNeedsUpstreamCatalog(account) {
 			if models, fetchErr := h.accountTestService.FetchOpenAIAccountModels(c.Request.Context(), account); fetchErr == nil {
 				response.Success(c, models)
 				return
@@ -3287,6 +3289,26 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	}
 
 	response.Success(c, models)
+}
+
+// openAITestPickerNeedsUpstreamCatalog reports whether the test-model picker
+// should rediscover the live upstream catalog. Exact whitelist/mapping keys are
+// already the selectable test models; fetching again would hide them when the
+// upstream uses different slugs. Wildcards and passthrough still need discovery.
+func openAITestPickerNeedsUpstreamCatalog(account *service.Account) bool {
+	if account == nil || account.IsOpenAIPassthroughEnabled() {
+		return true
+	}
+	mapping := account.GetModelMapping()
+	if len(mapping) == 0 {
+		return true
+	}
+	for key := range mapping {
+		if strings.Contains(key, "*") {
+			return true
+		}
+	}
+	return false
 }
 
 // SyncUpstreamModels handles syncing live supported models from an account's upstream.

@@ -137,6 +137,7 @@ type SettingService struct {
 	upstreamSiteAffinityCache   atomic.Value // *cachedUpstreamSiteAffinity
 	upstreamSiteAffinitySF      singleflight.Group
 
+	cyberSessionBlockRuntimeMu    sync.Mutex
 	cyberSessionBlockRuntimeCache atomic.Value // *cachedCyberSessionBlockRuntime
 	cyberSessionBlockRuntimeSF    singleflight.Group
 

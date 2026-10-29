@@ -18,7 +18,7 @@
     </div>
     <div class="overflow-auto">
       <DataTable
-        :columns="columns"
+        :columns="tableColumns"
         :data="data"
         :loading="loading"
         :server-side-sort="serverSideSort"
@@ -202,22 +202,28 @@
                 <Icon name="infoCircle" size="xs" class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400" />
               </div>
             </div>
+          </div>
+        </template>
+
+        <template #cell-cache_hit_rate="{ row }">
+          <span v-if="isImageUsage(row)" class="text-sm text-gray-400 dark:text-gray-500">—</span>
+          <div
+            v-else
+            data-testid="cache-hit-rate-card"
+            role="group"
+            :aria-label="t('admin.dashboard.cacheRate')"
+            class="w-20 space-y-1.5"
+          >
             <div
-              data-testid="cache-hit-rate-card"
-              role="group"
-              :aria-label="t('admin.dashboard.cacheRate')"
-              class="ml-1 flex w-24 shrink-0 flex-col gap-0.5 rounded-xl px-2.5 py-1.5 ring-1 ring-inset"
+              class="text-sm font-medium tabular-nums"
               :class="(cacheHitRate(row) ?? 0) > 0
-                ? 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/25'
-                : 'bg-gray-50 text-gray-600 ring-gray-200 dark:bg-dark-800 dark:text-gray-400 dark:ring-dark-600'"
+                ? 'text-sky-600 dark:text-sky-400'
+                : 'text-gray-400 dark:text-gray-500'"
             >
-              <span class="whitespace-nowrap text-[10px] font-medium leading-4 text-gray-500 dark:text-gray-400">
-                {{ t('admin.dashboard.cacheRate') }}
-              </span>
-              <span class="text-sm font-semibold leading-5 tabular-nums">{{ formatCacheHitRate(row) }}</span>
-              <div aria-hidden="true" class="mt-0.5 h-1 overflow-hidden rounded-full bg-gray-200/70 dark:bg-dark-600">
-                <div class="h-full rounded-full bg-sky-500 dark:bg-sky-400" :style="{ width: `${cacheHitRate(row) ?? 0}%` }"></div>
-              </div>
+              {{ formatCacheHitRate(row) }}
+            </div>
+            <div aria-hidden="true" class="h-0.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+              <div class="h-full rounded-full bg-sky-500 dark:bg-sky-400" :style="{ width: `${cacheHitRate(row) ?? 0}%` }"></div>
             </div>
           </div>
         </template>
@@ -640,6 +646,21 @@ const copiedRequestId = ref<string | null>(null)
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
 const ipGeoBatchLoading = ref(false)
+
+// Keep the companion cache-rate column tied to the existing Token visibility setting.
+const tableColumns = computed<Column[]>(() => props.columns.flatMap((column) => {
+  if (column.key !== 'tokens') return [column]
+
+  return [
+    column,
+    {
+      key: 'cache_hit_rate',
+      label: t('admin.dashboard.cacheRate'),
+      sortable: false,
+      class: 'w-28',
+    },
+  ]
+}))
 
 const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address'))
 

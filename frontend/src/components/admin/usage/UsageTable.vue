@@ -202,6 +202,23 @@
                 <Icon name="infoCircle" size="xs" class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400" />
               </div>
             </div>
+            <div
+              data-testid="cache-hit-rate-card"
+              role="group"
+              :aria-label="t('admin.dashboard.cacheRate')"
+              class="ml-1 flex w-24 shrink-0 flex-col gap-0.5 rounded-xl px-2.5 py-1.5 ring-1 ring-inset"
+              :class="(cacheHitRate(row) ?? 0) > 0
+                ? 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/25'
+                : 'bg-gray-50 text-gray-600 ring-gray-200 dark:bg-dark-800 dark:text-gray-400 dark:ring-dark-600'"
+            >
+              <span class="whitespace-nowrap text-[10px] font-medium leading-4 text-gray-500 dark:text-gray-400">
+                {{ t('admin.dashboard.cacheRate') }}
+              </span>
+              <span class="text-sm font-semibold leading-5 tabular-nums">{{ formatCacheHitRate(row) }}</span>
+              <div aria-hidden="true" class="mt-0.5 h-1 overflow-hidden rounded-full bg-gray-200/70 dark:bg-dark-600">
+                <div class="h-full rounded-full bg-sky-500 dark:bg-sky-400" :style="{ width: `${cacheHitRate(row) ?? 0}%` }"></div>
+              </div>
+            </div>
           </div>
         </template>
 
@@ -701,6 +718,22 @@ const tooltipData = ref<AdminUsageLog | null>(null)
 const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
+
+// Usage logs store ordinary input, cache creation and cache reads as disjoint
+// buckets. Match TokenUsageTrend: output tokens do not affect cache hit rate.
+const validTokenCount = (value: number | null | undefined): number =>
+  typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0
+
+const cacheHitRate = (row: AdminUsageLog): number | null => {
+  const read = validTokenCount(row.cache_read_tokens)
+  const total = validTokenCount(row.input_tokens) + validTokenCount(row.cache_creation_tokens) + read
+  return total > 0 && Number.isFinite(total) ? (read / total) * 100 : null
+}
+
+const formatCacheHitRate = (row: AdminUsageLog): string => {
+  const rate = cacheHitRate(row)
+  return rate === null ? '—' : `${rate.toFixed(1)}%`
+}
 
 const getRequestTypeLabel = (row: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(row)

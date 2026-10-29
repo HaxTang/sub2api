@@ -419,7 +419,7 @@ func (s *AntigravityGatewayService) TestConnectionWithPrompt(ctx context.Context
 		action:         "streamGenerateContent",
 		body:           requestBody,
 		c:              nil, // 无 gin.Context → 跳过 ops 追踪
-		httpUpstream:   s.httpUpstream,
+		httpUpstream:   accountTestUserAgentUpstream{HTTPUpstream: s.httpUpstream},
 		settingService: s.settingService,
 		accountRepo:    s.accountRepo,
 		requestedModel: modelID,

@@ -475,6 +475,7 @@ func newGrokOfficialAPIFallbackRequest(req *http.Request) (*http.Request, error)
 	} {
 		fallbackReq.Header.Del(header)
 	}
+	service.ApplyAccountTestUserAgent(fallbackReq)
 	return fallbackReq, nil
 }
 
@@ -536,6 +537,7 @@ func applyGrokCLIProxyHeaders(req *http.Request) {
 	req.Header.Set("x-grok-client-mode", xai.CLIClientMode)
 	req.Header.Set("x-authenticateresponse", "authenticate-response")
 	req.Header.Set("User-Agent", xai.CLIUserAgent(version))
+	service.ApplyAccountTestUserAgent(req)
 }
 
 func isSupportedGrokCLIVersion(version string) bool {

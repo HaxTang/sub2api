@@ -44,8 +44,10 @@ import (
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 
 const (
-	testClaudeAPIURL                = "https://api.anthropic.com/v1/messages?beta=true"
-	chatgptCodexAPIURL              = "https://chatgpt.com/backend-api/codex/responses"
+	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
+	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+	// Preserve the legacy initial header for Claude-compatible tests; non-Claude
+	// tests replace it at the send boundary with the request-scoped historical UA.
 	openAIAccountTestProbeUserAgent = "codex-tui/0.133.0 (Windows 10.0.19045; x86_64) WindowsTerminal (codex-tui; 0.133.0)"
 	defaultAntigravityTestModel     = "claude-sonnet-4-6"
 )
@@ -141,6 +143,7 @@ func normalizeGrokAccountTestMode(mode string) string {
 // AccountTestService handles account testing operations
 type AccountTestService struct {
 	accountRepo               AccountRepository
+	userAgentReader           accountTestUserAgentReader
 	geminiTokenProvider       *GeminiTokenProvider
 	claudeTokenProvider       *ClaudeTokenProvider
 	grokTokenProvider         *GrokTokenProvider
@@ -503,6 +506,9 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 		return nil
 	}
+
+	ctx = s.withAccountTestUserAgent(ctx, account, modelID)
+	c.Request = c.Request.WithContext(ctx)
 
 	// Route to platform-specific test method
 	// 按入站协议分流的多协议供应商（国产厂商等）：按账号协议选测试路径。
@@ -1272,6 +1278,7 @@ func (s *AccountTestService) applyGrokTestRequestHeaders(req *http.Request, acco
 		applyGrokCLIHeaders(req.Header)
 	}
 	account.ApplyHeaderOverrides(req.Header)
+	applyAccountTestUserAgent(req.Context(), req.Header)
 }
 
 func (s *AccountTestService) observeGrokTestResponse(ctx context.Context, account *Account, resp *http.Response) {
@@ -1910,6 +1917,7 @@ func (s *AccountTestService) testGrokSTT(c *gin.Context, ctx context.Context, ac
 	}
 	account.ApplyHeaderOverrides(req.Header)
 
+	applyAccountTestUserAgent(ctx, req.Header)
 	resp, err := s.httpUpstream.Do(req, s.grokTestProxyURL(account), account.ID, account.Concurrency)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok STT failed: %s", err.Error()))
@@ -1982,6 +1990,7 @@ func (s *AccountTestService) testGrokRealtime(c *gin.Context, ctx context.Contex
 		applyGrokCLIHeaders(headers)
 	}
 	account.ApplyHeaderOverrides(headers)
+	applyAccountTestUserAgent(ctx, headers)
 
 	dialer := s.grokWSDialer
 	if dialer == nil {
@@ -2281,6 +2290,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 		proxyURL = account.Proxy.URL()
 	}
 
+	applyAccountTestUserAgent(ctx, req.Header)
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Chat Completions API (/v1/chat/completions) request failed: %s", err.Error()))
@@ -2570,6 +2580,7 @@ func (s *AccountTestService) testGeminiAccountConnection(c *gin.Context, account
 		proxyURL = account.Proxy.URL()
 	}
 
+	applyAccountTestUserAgent(ctx, req.Header)
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
@@ -3200,6 +3211,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 		proxyURL = account.Proxy.URL()
 	}
 
+	applyAccountTestUserAgent(ctx, req.Header)
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))

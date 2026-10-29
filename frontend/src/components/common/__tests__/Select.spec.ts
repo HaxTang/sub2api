@@ -240,4 +240,4 @@ describe('Select remote search', () => {
     const labels = [...dropdown.querySelectorAll('.select-option-label')].map((el) => el.textContent)
     expect(labels).toEqual(['GPT-5.4 Mini'])
   })
-}
+})

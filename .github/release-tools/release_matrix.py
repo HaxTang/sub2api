@@ -21,7 +21,7 @@ VERSION_RE = re.compile(r'\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?')
 
 
 def config(simple=False):
-    return yaml.safe_load((SIMPLE_CONFIG if simple else FULL_CONFIG).read_text())
+    return yaml.safe_load((SIMPLE_CONFIG if simple else FULL_CONFIG).read_text(encoding='utf-8'))
 
 
 def targets(simple=False):
@@ -46,14 +46,17 @@ def archive_name(version, target):
 
 
 def sha256(path):
+    digest = hashlib.sha256()
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def plan(args):
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     if args.dry_run:
-        version = VERSION_FILE.read_text().strip()
+        version = VERSION_FILE.read_text(encoding='utf-8').strip()
         tag = 'v' + version
     else:
         tag = args.ref
@@ -65,13 +68,13 @@ def plan(args):
             raise ValueError('checkout does not match the selected release tag')
     if not VERSION_RE.fullmatch(version):
         raise ValueError('invalid VERSION')
-    VERSION_FILE.write_text(version + '\n')
+    VERSION_FILE.write_text(version + '\n', encoding='utf-8')
     result = {'sha': sha, 'tag': tag, 'version': version,
               'owner_lower': os.environ.get('GITHUB_REPOSITORY_OWNER', '').lower(),
               'simple': str(args.simple).lower(), 'dry_run': str(args.dry_run).lower(),
               'date': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
               'matrix': json.dumps({'include': targets(args.simple)}, separators=(',', ':'))}
-    with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+    with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
         for key, value in result.items():
             output.write(f'{key}={value}\n')
 
@@ -101,14 +104,14 @@ def generate_config(args):
         else:
             data['release']['extra_files'] = extra
             data['checksum'] = {'name_template': 'checksums.txt', 'algorithm': 'sha256', 'extra_files': extra}
-    Path(args.output).write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
+    Path(args.output).write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding='utf-8')
 
 
 def collect(args):
     target = {'goos': args.goos, 'goarch': args.goarch}
     name = archive_name(args.version, target)
     source = Path('dist') / name
-    checksums = {line.split()[1].lstrip('*'): line.split()[0] for line in Path('dist/checksums.txt').read_text().splitlines()}
+    checksums = {line.split()[1].lstrip('*'): line.split()[0] for line in Path('dist/checksums.txt').read_text(encoding='utf-8').splitlines()}
     digest = sha256(source)
     if checksums.get(name) != digest:
         raise ValueError('archive does not match the build checksum')
@@ -116,7 +119,7 @@ def collect(args):
     output.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, output / name)
     manifest = {'sha': args.sha, 'version': args.version, 'target': target, 'archive': name, 'sha256': digest}
-    (output / f"manifest-{args.goos}-{args.goarch}.json").write_text(json.dumps(manifest) + '\n')
+    (output / f"manifest-{args.goos}-{args.goarch}.json").write_text(json.dumps(manifest) + '\n', encoding='utf-8')
 
 
 def verify(args):
@@ -126,7 +129,7 @@ def verify(args):
         name = archive_name(args.version, target)
         manifest_name = f"manifest-{target['goos']}-{target['goarch']}.json"
         expected.update((name, manifest_name))
-        manifest = json.loads((directory / manifest_name).read_text())
+        manifest = json.loads((directory / manifest_name).read_text(encoding='utf-8'))
         if manifest != {'sha': args.sha, 'version': args.version, 'target': target,
                         'archive': name, 'sha256': sha256(directory / name)}:
             raise ValueError(f'build provenance or checksum mismatch: {name}')

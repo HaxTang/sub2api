@@ -30,7 +30,7 @@ class ReleaseMatrixTest(unittest.TestCase):
         for name in ('.goreleaser.yaml', '.goreleaser.simple.yaml'):
             shutil.copyfile(ROOT / name, name)
         Path('backend/cmd/server').mkdir(parents=True)
-        release.VERSION_FILE.write_text('9.8.7\n')
+        release.VERSION_FILE.write_text('9.8.7\n', encoding='utf-8')
 
     def fixture_artifacts(self, simple=False):
         directory = Path('release-input')
@@ -48,7 +48,7 @@ class ReleaseMatrixTest(unittest.TestCase):
                 archive.write_bytes(b'fixture archive')
             metadata = {'version': '9.8.7', 'sha': 'a' * 40, 'target': target,
                         'archive': name, 'sha256': release.sha256(archive)}
-            (directory / f"manifest-{target['goos']}-{target['goarch']}.json").write_text(json.dumps(metadata))
+            (directory / f"manifest-{target['goos']}-{target['goarch']}.json").write_text(json.dumps(metadata), encoding='utf-8')
         return argparse.Namespace(input='release-input', version='9.8.7', sha='a' * 40, simple=simple, output='contexts')
 
     def test_full_and_simple_matrix_match_existing_targets(self):
@@ -60,7 +60,7 @@ class ReleaseMatrixTest(unittest.TestCase):
     def test_leaf_keeps_packaging_and_selects_only_one_target(self):
         original = release.config()
         release.generate_config(argparse.Namespace(mode='build', simple=False, goos='darwin', goarch='arm64', output='leaf.yaml'))
-        leaf = yaml.safe_load(Path('leaf.yaml').read_text())
+        leaf = yaml.safe_load(Path('leaf.yaml').read_text(encoding='utf-8'))
         self.assertEqual(leaf['builds'][0]['goos'], ['darwin'])
         self.assertEqual(leaf['builds'][0]['goarch'], ['arm64'])
         self.assertEqual(leaf['builds'][0]['ignore'], [])
@@ -74,7 +74,7 @@ class ReleaseMatrixTest(unittest.TestCase):
             with self.subTest(simple=simple):
                 original = release.config(simple)
                 release.generate_config(argparse.Namespace(mode='publish', simple=simple, output='publisher.yaml'))
-                data = yaml.safe_load(Path('publisher.yaml').read_text())
+                data = yaml.safe_load(Path('publisher.yaml').read_text(encoding='utf-8'))
                 self.assertTrue(data['builds'][0]['skip'])
                 self.assertFalse(data['archives'])
                 self.assertFalse(data['dockers'])
@@ -100,7 +100,7 @@ class ReleaseMatrixTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.verify(args)
         args.sha = 'a' * 40
-        Path('release-input/unexpected').write_text('not an asset')
+        Path('release-input/unexpected').write_text('not an asset', encoding='utf-8')
         with self.assertRaises(ValueError):
             release.verify(args)
         Path('release-input/unexpected').unlink()
@@ -110,16 +110,17 @@ class ReleaseMatrixTest(unittest.TestCase):
 
     def test_linux_context_preserves_binary_executable_mode(self):
         args = self.fixture_artifacts()
-        Path('Dockerfile.goreleaser').write_text('FROM scratch\nCOPY sub2api /sub2api\n')
+        Path('Dockerfile.goreleaser').write_text('FROM scratch\nCOPY sub2api /sub2api\n', encoding='utf-8')
         Path('deploy').mkdir()
-        Path('deploy/docker-entrypoint.sh').write_text('#!/bin/sh\nexec /app/sub2api\n')
+        Path('deploy/docker-entrypoint.sh').write_bytes(b'#!/bin/sh\nexec /app/sub2api\n')
         Path('backend/resources').mkdir()
-        Path('backend/resources/data').write_text('fixture')
+        Path('backend/resources/data').write_text('fixture', encoding='utf-8')
         release.contexts(args)
         for arch in ('amd64', 'arm64'):
             binary = Path('contexts') / arch / 'sub2api'
             self.assertEqual(binary.read_bytes(), b'fixture')
-            self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
+            if os.name != 'nt':
+                self.assertEqual(binary.stat().st_mode & 0o777, 0o755)
 
     def test_plan_requires_a_tag_for_publication(self):
         args = argparse.Namespace(ref='main', dry_run=False, simple=False)
@@ -134,7 +135,7 @@ class ReleaseMatrixTest(unittest.TestCase):
     def test_dry_run_plan_resolves_matrix_without_a_new_tag(self):
         with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'ExampleOwner'}), patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
             release.plan(argparse.Namespace(ref='feature/matrix', dry_run=True, simple=False))
-        output = dict(line.split('=', 1) for line in Path('outputs').read_text().splitlines())
+        output = dict(line.split('=', 1) for line in Path('outputs').read_text(encoding='utf-8').splitlines())
         self.assertEqual(output['dry_run'], 'true')
         self.assertEqual(output['owner_lower'], 'exampleowner')
         self.assertEqual(len(json.loads(output['matrix'])['include']), 5)
@@ -143,14 +144,14 @@ class ReleaseMatrixTest(unittest.TestCase):
         fake_bin = Path('bin')
         fake_bin.mkdir()
         docker = fake_bin / 'docker'
-        docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\n')
+        docker.write_bytes(b'#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\n')
         docker.chmod(0o755)
         env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
-               'DOCKER_LOG': str(Path('docker.log').resolve()), 'RUNNER_TEMP': self.temp.name,
+               'DOCKER_LOG': Path('docker.log').resolve().as_posix(), 'RUNNER_TEMP': Path(self.temp.name).as_posix(),
                'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'ExampleOwner/sub2api',
                'DRY_RUN': 'true', 'SIMPLE_RELEASE': 'false', 'DOCKERHUB_USERNAME': 'skip'}
-        subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
-        log = Path('docker.log').read_text()
+        subprocess.run(['bash', (ROOT / '.github/release-tools/release-images.sh').as_posix()], env=env, check=True)
+        log = Path('docker.log').read_text(encoding='utf-8')
         self.assertEqual(log.count('buildx build'), 2)
         self.assertIn('linux/arm64', log)
         self.assertNotIn('--push', log)
@@ -163,17 +164,17 @@ class ReleaseMatrixTest(unittest.TestCase):
         fake_bin = Path('bin')
         fake_bin.mkdir()
         docker = fake_bin / 'docker'
-        docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\n')
+        docker.write_bytes(b'#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\n')
         docker.chmod(0o755)
         for simple in (False, True):
             with self.subTest(simple=simple):
                 log_path = Path(f'docker-{simple}.log').resolve()
                 env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
-                       'DOCKER_LOG': str(log_path), 'RUNNER_TEMP': self.temp.name,
+                       'DOCKER_LOG': log_path.as_posix(), 'RUNNER_TEMP': Path(self.temp.name).as_posix(),
                        'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'ExampleOwner/sub2api',
                        'DRY_RUN': 'false', 'SIMPLE_RELEASE': str(simple).lower(), 'DOCKERHUB_USERNAME': 'fixturehub'}
-                subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
-                log = log_path.read_text()
+                subprocess.run(['bash', (ROOT / '.github/release-tools/release-images.sh').as_posix()], env=env, check=True)
+                log = log_path.read_text(encoding='utf-8')
                 self.assertIn('--push', log)
                 self.assertEqual(log.count('buildx build'), 1 if simple else 2)
                 if simple:

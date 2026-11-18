@@ -216,6 +216,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldAllowMessagesDispatch,
 				group.FieldAllowLive,
 				group.FieldForceOpenaiFast,
+				group.FieldForceOpenaiUltrafast,
 				group.FieldFreeOpenaiFast,
 				group.FieldDefaultMappedModel,
 				group.FieldMessagesDispatchModelConfig,
@@ -235,6 +236,8 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldProfitControlEnabled,
 				group.FieldProfitMinMargin,
 				group.FieldProfitSafetyBuffer,
+				// OpenAI 选号从 ctx 分组读取隐私门，漏选会放行未设置隐私的账号。
+				group.FieldRequirePrivacySet,
 			)
 		}).
 		Only(ctx)
@@ -1034,6 +1037,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		AllowMessagesDispatch:           g.AllowMessagesDispatch,
 		AllowLive:                       g.AllowLive,
 		ForceOpenAIFast:                 g.ForceOpenaiFast,
+		ForceOpenAIUltrafast:            g.ForceOpenaiUltrafast,
 		FreeOpenAIFast:                  g.FreeOpenaiFast,
 		RequireOAuthOnly:                g.RequireOauthOnly,
 		RequirePrivacySet:               g.RequirePrivacySet,
